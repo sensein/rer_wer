@@ -13,7 +13,7 @@ def run():
     # VARIABLES
 
     # Define the input CSV file
-    csv_file = "/om2/scratch/Mon/meral/wer_table_profiling.csv"
+    csv_file = "/om2/scratch/Mon/meral/wer_table_profiling_id.csv"
     # Define the speech to text model
     model_uri = "openai/whisper-large-v3"
     # Define the output CSV file
@@ -74,6 +74,10 @@ def run():
         score = row['score']
         return score
 
+    @mark.task
+    def extract_id(row):
+        identifier = row['identifier']
+        return identifier
 
     #########################################################################
 
@@ -93,6 +97,7 @@ def run():
     wf.add(extract_school(name="extract_school_task", row=wf.lzin.x))
     wf.add(extract_grade(name="extract_grade_task", row=wf.lzin.x))
     wf.add(extract_score(name="extract_score_task", row=wf.lzin.x))
+    wf.add(extract_id(name="extract_id_task", row=wf.lzin.x))
     wf.add(read_audio(name="read_audio", 
                       file_path=wf.extract_path_task.lzout.out))
     wf.add(transcribe_audio(name="transcribe_audio_task",
@@ -110,6 +115,7 @@ def run():
                 ("school", wf.extract_school_task.lzout.out),
                 ("grade", wf.extract_grade_task.lzout.out),
                 ("score", wf.extract_score_task.lzout.out),
+                ("identifier", wf.extract_id_task.lzout.out),
                 ("expected_text", wf.extract_expected_text.lzout.out),
                 # ("audio", wf.read_audio.lzout.out),
                 # ("transcription", wf.transcribe_audio_task.lzout.out),
@@ -128,6 +134,7 @@ def run():
         new_line = pd.Series(
             {
                 "file": output.output.file,
+                "identifier": output.output.identifier,
                 "school": output.output.school,
                 "grade": output.output.grade,
                 "score": output.output.score,
