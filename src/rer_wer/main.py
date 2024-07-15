@@ -6,6 +6,7 @@ from senselab.utils.data_structures.model import HFModel
 from senselab.audio.tasks.speech_to_text.speech_to_text_evaluation import calculate_wer
 from typing import List
 from senselab.utils.data_structures.script_line import ScriptLine
+import string
 
 def run():
     #########################################################################
@@ -16,7 +17,7 @@ def run():
     # Define the speech to text model
     model_uri = "openai/whisper-large-v3"
     # Define the output CSV file
-    output_file = "../../data/wer_table_cleaned2_wer.csv"
+    output_file = "/net/vast-storage.ib.cluster/scratch/scratch/Mon/fabiocat/rer_wer/data/output.csv"
 
     #########################################################################
 
@@ -45,11 +46,18 @@ def run():
     @mark.task
     def extract_expected_text(row):
         expected_text = row['expected']
+        # Convert to lowercase
+        expected_text = expected_text.lower()
+        # Remove punctuation
+        expected_text = expected_text.translate(str.maketrans('', '', string.punctuation))
         return expected_text
     
     @mark.task
     def extract_transcription_text(transcripts: List[ScriptLine]):
-        return transcripts[0].text
+        text = transcripts[0].text
+        text = text.lower()
+        text = text.translate(str.maketrans('', '', string.punctuation))
+        return text
 
     @mark.task
     def extract_school(row):
@@ -73,9 +81,6 @@ def run():
     # WORKFLOW
     # Read the CSV file
     df = pd.read_csv(csv_file)
-
-    # Select the first 10 rows
-    df = df.head(10)
 
     # Define the transcription model
     model = HFModel(path_or_uri=model_uri, revision="main")
@@ -134,6 +139,8 @@ def run():
         df_output = pd.concat([df_output, new_line.to_frame().T], ignore_index=True)
 
     df_output.to_csv(output_file, index=False)
+    print("All done.")
+
 # Execute the workflow
 if __name__ == "__main__":
     run()
