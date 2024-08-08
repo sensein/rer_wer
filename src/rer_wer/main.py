@@ -202,6 +202,7 @@ def process_batch(logger, batch_df, model, language, device):
                               "identifier": identifiers,
                               "expected_text": expected_texts,
                               "transcription": transcription_texts,
+                              "original_transcription": transcriptions,
                               "wer": wers})
     return output_df
 
