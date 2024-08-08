@@ -7,7 +7,7 @@ from senselab.audio.tasks.speech_to_text.api import transcribe_audios
 from senselab.utils.data_structures.model import HFModel
 from senselab.utils.data_structures.device import DeviceType
 from senselab.utils.data_structures.language import Language
-from senselab.audio.tasks.speech_to_text.speech_to_text_evaluation import calculate_wer
+from senselab.audio.tasks.speech_to_text_evaluation import calculate_wer
 from senselab.audio.tasks.preprocessing.preprocessing import downmix_audios_to_mono, resample_audios
 import string
 
@@ -51,6 +51,16 @@ def extract_transcription_text_from_tuple(row):
     """Extract and preprocess transcription text from a tuple."""
     text = row[0].text
     return preprocess_text(text)
+
+@mark.task
+def extract_start_from_tuple(row):
+    """Extract and preprocess start time from a tuple."""
+    return row[0].start
+
+@mark.task
+def extract_end_from_tuple(row):
+    """Extract and preprocess end time from a tuple."""
+    return row[0].end
 
 @mark.task
 def extract_expected_text_from_tuple(row):
@@ -150,6 +160,12 @@ def wer_workflow(transcriptions_and_expected_texts, plugin='cf'):
 
     wer_wf.add(extract_transcription_text_from_tuple(name="extract_transcription_text_task", 
                                       row=wer_wf.lzin.transcriptions_and_expected_texts,
+                                      cache_dir="/om2/scratch/Sun/fabiocat/rer_wer/src/rer_wer/cache/13"))
+    wer_wf.add(extract_start_from_tuple(name="extract_start_task",
+                                      row=wer_wf.lzin.transcriptions_and_expected_texts,
+                                      cache_dir="/om2/scratch/Sun/fabiocat/rer_wer/src/rer_wer/cache/14"))
+    wer_wf.add(extract_end_from_tuple(name="extract_end_task",
+                                      row=wer_wf.lzin.transcriptions_and_expected_texts,
                                       cache_dir="/om2/scratch/Sun/fabiocat/rer_wer/src/rer_wer/cache/10"))
     wer_wf.add(extract_expected_text_from_tuple(name="extract_expected_text_from_tuple_task",
                                                 row=wer_wf.lzin.transcriptions_and_expected_texts,
@@ -162,6 +178,8 @@ def wer_workflow(transcriptions_and_expected_texts, plugin='cf'):
     wer_wf.set_output(
             [
                 ("transcription_text", wer_wf.extract_transcription_text_task.lzout.out),
+                ("start", wer_wf.extract_start_task.lzout.out),
+                ("end", wer_wf.extract_end_task.lzout.out),
                 ("wer", wer_wf.compute_wer.lzout.out),
             ])
 
@@ -172,11 +190,14 @@ def wer_workflow(transcriptions_and_expected_texts, plugin='cf'):
     
     transcription_texts = []
     wers = []
+    starts = []
+    ends = []
     for res in results:
         transcription_texts.append(res.output.transcription_text)
         wers.append(res.output.wer)
-    
-    return transcription_texts, wers
+        starts.append(res.output.start)
+        ends.append(res.output.end)
+    return transcription_texts, wers, starts, ends
 
 def process_batch(logger, batch_df, model, language, device):
     start_time = time.time()
@@ -192,7 +213,7 @@ def process_batch(logger, batch_df, model, language, device):
     start_time = time.time()
     logger.info("Starting WER workflow for batch...")
     transcriptions_and_expected_texts = list(zip(transcriptions, expected_texts))
-    transcription_texts, wers = wer_workflow(transcriptions_and_expected_texts)
+    transcription_texts, wers, starts, ends = wer_workflow(transcriptions_and_expected_texts)
     logger.info(f"WER workflow completed in {time.time() - start_time:.2f} seconds")
 
     output_df = pd.DataFrame({"file": files,
@@ -203,6 +224,8 @@ def process_batch(logger, batch_df, model, language, device):
                               "expected_text": expected_texts,
                               "transcription": transcription_texts,
                               "original_transcription": transcriptions,
+                              "start_vad": starts, 
+                              "end_vad": ends,
                               "wer": wers})
     return output_df
 
@@ -258,9 +281,9 @@ def run():
 
         # Append results to the output file
         if start_row == 0:
-            batch_output_df.to_csv(output_file, index=False)
+            batch_output_df.to_csv(output_file, index=False, sep='\t')
         else:
-            batch_output_df.to_csv(output_file, mode='a', header=False, index=False)
+            batch_output_df.to_csv(output_file, mode='a', header=False, index=False, sep='\t')
 
         logger.info(f"Batch from row {start_row} to {end_row} processed and saved in {time.time() - batch_start_time:.2f}")
 

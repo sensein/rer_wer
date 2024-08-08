@@ -7,5 +7,6 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --time=18:00:00
 #SBATCH -x node[113,115]
+#SBATCH -p gablab
 
 srun python main.py
